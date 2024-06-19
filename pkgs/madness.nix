@@ -10,25 +10,25 @@
 # Note that the program to be executed is mapped by the kernel into the process along with the stage1 loader, even though
 # it will never run there. In order for this to work reliably the stage1 loader must be build position-independent (-pie)
 
-{pkgs ? (import <nixpkgs> {}),...}:
+{writeText, writeShellScript, coreutils, which, patchelf, runCommand, gcc9}:
 let
-    stage2_loader = pkgs.writeShellScript "madness_stage2_loader.sh" ''
+    stage2_loader = writeShellScript "madness_stage2_loader.sh" ''
         # echo "[madness] +$0 $@" >&2
         # env >&2
         if [[ "$1" == *-madness_stage1_loader || "$1" == */ld-linux-x86-64.so.2 ]]; then shift; fi
         case $1 in
-        /*) EXECUTABLE=$(${pkgs.coreutils}/bin/realpath $1 2> /dev/null) ;;
-        *) EXECUTABLE=$(${pkgs.which}/bin/which $1 2> /dev/null) ;;
+        /*) EXECUTABLE=$(${coreutils}/bin/realpath $1 2> /dev/null) ;;
+        *) EXECUTABLE=$(${which}/bin/which $1 2> /dev/null) ;;
         esac
         if [ -z "$EXECUTABLE" ]; then echo "[madness] Program $1 is not on the path." >&2; exit 1; fi
         shift
-        LOADER=$(PATH=$(${pkgs.patchelf}/bin/patchelf --print-rpath "$EXECUTABLE") ${pkgs.which}/bin/which ld-linux-x86-64.so.2)
+        LOADER=$(PATH=$(${patchelf}/bin/patchelf --print-rpath "$EXECUTABLE") ${which}/bin/which ld-linux-x86-64.so.2)
         # echo "[madness] Selected loader: $LOADER; Preload: $MD_PRELOAD" >&2 
         export LD_PRELOAD="$MD_PRELOAD"
         export MADNESS_EXECUTABLE_NAME="$EXECUTABLE"
         [ -n "$LOADER" ] || (echo "[madness] Unable to find a loader for executable $EXECUTABLE" >&2; exit 1) && exec "$LOADER" "$EXECUTABLE" "$@"
     '';
-    stage1_loader_src = pkgs.writeText "madness_stage1_loader.c" ''
+    stage1_loader_src = writeText "madness_stage1_loader.c" ''
         typedef long ssize_t;
         typedef unsigned long size_t;
 
@@ -101,9 +101,10 @@ let
         }
     '';
     # As of 08/19/2021, madness does not build with the GCC 10 toolchain.
-    loader = pkgs.runCommand "madness_stage1_loader" {} ''
-        ${pkgs.gcc9}/bin/gcc -fPIC -pie -fno-stack-protector -O2 -nostdlib -nostartfiles ${stage1_loader_src} -o $out
+    madness_loader = runCommand "madness_stage1_loader" {} ''
+        ${gcc9}/bin/gcc -fPIC -pie -fno-stack-protector -O2 -nostdlib -nostartfiles ${stage1_loader_src} -o $out
     '';
 in {
-    inherit loader pkgs;
+    inherit madness_loader;
+    loader = madness_loader;
 }

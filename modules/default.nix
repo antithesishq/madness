@@ -11,7 +11,8 @@ let
 
   cfg = config.madness;
 
-  loader = (pkgs.callPackage ./madness.nix { }).loader;
+  loader = (pkgs.callPackage ../pkgs/madness.nix { }).loader;
+
 in {
   options.madness = {
     enable = lib.mkOption {
