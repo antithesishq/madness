@@ -8,9 +8,12 @@ let
 
   pre2405 = lib.strings.versionOlder (config.system.nixos.release) "24.05";
 
+
+  cfg = config.madness;
+
   loader = (pkgs.callPackage ./madness.nix { }).loader;
 in {
-  options.antithesis.madness = {
+  options.madness = {
     enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -20,12 +23,13 @@ in {
     };
   };
 
-  config = lib.mkIf config.antithesis.madness.enable {
+  config = lib.mkIf cfg.enable {
     # if 24.05 or later we can use the built in options to set our custom loader
     environment = lib.optionalAttrs (!pre2405) {
         stub-ld.enable = false;
         ldso = loader;
     };
+
     # older nixos we need to set the loader manually
     systemd.tmpfiles.rules = lib.optionals pre2405 [ "L+ /lib64/ld-linux-x86-64.so.2 - - - - ${loader}" ];
   };
